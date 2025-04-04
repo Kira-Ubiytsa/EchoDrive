@@ -21,41 +21,38 @@ def main():
         for i, mon in enumerate(sct.monitors):
             print(i, mon)
 
-        # If you have two monitors, often:
-        # 0 => the 'virtual' desktop covering both
-        # 1 => first monitor
-        # 2 => second monitor
         # Choose the monitor index that corresponds to your game screen
-        monitor_index = 2  # Change if you see from the print() that your second monitor is '1' or '2'
+        # (Change this if needed)
+        monitor_index = 2
         monitor = sct.monitors[monitor_index]
 
-    while True:
-        screenshot = sct.grab(monitor)
-        img_bgra = np.array(screenshot)
-        img_bgr = cv2.cvtColor(img_bgra, cv2.COLOR_BGRA2BGR)
-        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        while True:
+            screenshot = sct.grab(monitor)
+            img_bgra = np.array(screenshot)
+            img_bgr = cv2.cvtColor(img_bgra, cv2.COLOR_BGRA2BGR)
+            gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
-        cv2.imshow("AI Hype Assistant Preview", img_bgr)
-        if cv2.waitKey(1) & 0xFF == 27:  # ESC key to exit
-            break
+            cv2.imshow("AI Hype Assistant Preview", img_bgr)
+            if cv2.waitKey(1) & 0xFF == 27:  # ESC key to exit
+                break
 
-        # OCR
-        text = pytesseract.image_to_string(gray).strip()
+            # OCR
+            text = pytesseract.image_to_string(gray).strip()
 
-        # Always print the exact text recognized, to see if we get anything
-        if text:
-            print(f"Detected raw text: [{text}]")
+            # Print the exact text recognized, to see if we get anything
+            if text:
+                print(f"Detected raw text: [{text}]")
 
-        # Force lower-case for matching
-        text_lower = text.lower()
+            # Force lower-case for matching
+            text_lower = text.lower()
 
-        # Debug: check if our condition is triggered
-        if "kill" in text_lower or "eliminated" in text_lower:
-            print("Match found! Triggering TTS...")
-            tts_engine.say("Let's go! You're cracked!")
-            tts_engine.runAndWait()
+            # Debug: check if our condition is triggered
+            if "kill" in text_lower or "eliminated" in text_lower or "slain" in text_lower or "first blood" in text_lower:
+                print("Match found! Triggering TTS...")
+                tts_engine.say("Let's go! You're cracked!")
+                tts_engine.runAndWait()
 
-        time.sleep(1)
+            time.sleep(1)
 
     cv2.destroyAllWindows()
 
