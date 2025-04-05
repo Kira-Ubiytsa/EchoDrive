@@ -1,0 +1,22 @@
+{
+  "alpha": 0.1,
+  "gamma": 0.9,
+  "epsilon": 0.2,
+  "Q": {
+    "(False, False, False)": {
+      "short_hype": 0.09509900499000001,
+      "strong_hype": 0.0,
+      "silent": 0.008910000000000001
+    },
+    "(True, False, False)": {
+      "short_hype": 0.17622837887822274,
+      "strong_hype": 0.0,
+      "silent": -0.002017215478801529
+    },
+    "(False, False, True)": {
+      "short_hype": 0.0985589104491,
+      "strong_hype": 0.0,
+      "silent": 0.0
+    }
+  }
+}
