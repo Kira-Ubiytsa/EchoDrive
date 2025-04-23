@@ -9,12 +9,17 @@
       "silent": 0.008910000000000001
     },
     "(True, False, False)": {
-      "short_hype": 0.17622837887822274,
+      "short_hype": 0.27446609508944053,
       "strong_hype": 0.0,
       "silent": -0.002017215478801529
     },
     "(False, False, True)": {
       "short_hype": 0.0985589104491,
+      "strong_hype": 0.0,
+      "silent": 0.0
+    },
+    "(True, False, True)": {
+      "short_hype": 0.0885589104491,
       "strong_hype": 0.0,
       "silent": 0.0
     }

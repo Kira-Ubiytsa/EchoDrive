@@ -1,95 +1,44 @@
-import json
-import random
+import json, random, ast
 
 class RLLearningAgent:
-    def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.2):
-        self.alpha = alpha
-        self.gamma = gamma
-        self.epsilon = epsilon
-        
-        # Q-Table: {state -> {action -> q_value}}
-        self.Q = {}
-        
-        # Possible actions
+    def __init__(self, alpha=.1, gamma=.9, epsilon=.2):
+        self.alpha, self.gamma, self.epsilon = alpha, gamma, epsilon
         self.actions = ["short_hype", "strong_hype", "silent"]
+        self.Q = {}
 
-    def encode_state(self, events: dict) -> tuple:
-        kill = events.get("kill", False)
-        score = events.get("score", False)
-        victory = events.get("victory", False)
-        return (kill, score, victory)
+    # ---------- helpers ----------
+    def _state_key(self, events):             # encode to tuple
+        return (events["kill"], events["score"], events["victory"])
 
-    def init_state_in_Q(self, state):
+    def _ensure(self, state):
         if state not in self.Q:
-            self.Q[state] = {action: 0.0 for action in self.actions}
+            self.Q[state] = {a: 0.0 for a in self.actions}
 
-    def act(self, state) -> str:
-        self.init_state_in_Q(state)
-        
-        # Epsilon-greedy
+    # ---------- API ----------
+    def act(self, events):
+        state = self._state_key(events)
+        self._ensure(state)
         if random.random() < self.epsilon:
             return random.choice(self.actions)
-        else:
-            q_values = self.Q[state]
-            return max(q_values, key=q_values.get)
+        return max(self.Q[state], key=self.Q[state].get)
 
-    def update(self, old_state, action, reward, new_state):
-        self.init_state_in_Q(old_state)
-        self.init_state_in_Q(new_state)
+    def update(self, old_events, action, reward, new_events):
+        s, s2 = self._state_key(old_events), self._state_key(new_events)
+        self._ensure(s); self._ensure(s2)
+        best_future = max(self.Q[s2].values())
+        old_q = self.Q[s][action]
+        self.Q[s][action] = old_q + self.alpha * (reward + self.gamma*best_future - old_q)
 
-        old_value = self.Q[old_state][action]
-        future = max(self.Q[new_state].values())
+    # ---------- persistence ----------
+    def save_q_table(self, path):
+        with open(path, "w") as f:
+            json.dump({str(k): v for k, v in self.Q.items()}, f, indent=2)
 
-        new_value = old_value + self.alpha * (reward + self.gamma * future - old_value)
-        self.Q[old_state][action] = new_value
-
-    def save_q_table(self, filename: str):
-        """
-        Save the Q-table to a JSON file.
-        Note: The keys are currently Python tuples; JSON only supports strings as keys.
-        We'll convert them to strings.
-        """
-        # Convert keys (which might be tuples) to strings
-        q_table_str_keys = {str(k): v for k, v in self.Q.items()}
-        
-        data = {
-            "alpha": self.alpha,
-            "gamma": self.gamma,
-            "epsilon": self.epsilon,
-            "Q": q_table_str_keys
-        }
-        
-        with open(filename, "w") as f:
-            json.dump(data, f, indent=2)
-        print(f"Q-table saved to {filename}")
-
-    def load_q_table(self, filename: str):
-        """
-        Load the Q-table from a JSON file.
-        We'll need to convert string keys back to tuples if they were stored that way.
-        """
+    def load_q_table(self, path):
         try:
-            with open(filename, "r") as f:
-                data = json.load(f)
-                self.alpha = data["alpha"]
-                self.gamma = data["gamma"]
-                self.epsilon = data["epsilon"]
-
-                q_table_str_keys = data["Q"]
-                # Convert string keys back to Python tuples
-                self.Q = {}
-                for k_str, actions_dict in q_table_str_keys.items():
-                    # remove parentheses and split by comma if you used str(tuple)
-                    # or use an eval approach to parse the tuple from string carefully
-                    # e.g.  k_str might look like:  '(False, False, False)'
-                    # You can safely use literal_eval if you trust the JSON file.
-                    import ast
-                    k_tuple = ast.literal_eval(k_str)
-                    self.Q[k_tuple] = actions_dict
-
-            print(f"Q-table loaded from {filename}")
-
+            with open(path) as f:
+                raw = json.load(f)
+            self.Q = {ast.literal_eval(k): v for k, v in raw.items()}
+            print("Q-table loaded from", path)
         except FileNotFoundError:
-            print(f"No Q-table file found at {filename}; starting fresh.")
-            # It's okay if there's no file yet—just start with an empty Q.
-
+            print("No existing Q-table – starting fresh.")
