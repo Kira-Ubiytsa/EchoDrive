@@ -1,106 +1,100 @@
 # main.py
-
 import time
 import pyttsx3
-import pynput
-from pynput.keyboard import Key, Listener
-from capture import get_game_state
-from rl_agent import RLLearningAgent
+from pynput.keyboard import Listener, Key
+from capture import get_game_state          # your screen-capture / OCR module
+from rl_agent import RLLearningAgent        # Q-learning agent
+from local_llm import generate_hype_line    # calls text-generation-webui
 
-# Shared variable for user feedback (+1, 0, or -1)
-user_feedback = 0
+# ---------- USER-FEEDBACK HOTKEYS ----------
+user_feedback = 0                       # +1, 0, or -1
 
 def on_key_press(key):
-    """Keyboard callback for user feedback: 
-       Press '+' for like, '-' for dislike."""
     global user_feedback
     try:
-        # If the key pressed is a character and is '+' or '-'
-        if key.char == '+':
+        if key.char == '+':             # like
             user_feedback = +1
-        elif key.char == '-':
+        elif key.char == '-':           # dislike
             user_feedback = -1
     except AttributeError:
-        # Special keys (e.g., Arrow keys) might cause an AttributeError
-        pass
+        pass                            # ignore non-character keys
+# launch listener (runs in its own thread)
+Listener(on_press=on_key_press, daemon=True).start()
 
+# ---------- TTS ----------
 def setup_tts():
-    engine = pyttsx3.init()
-    engine.setProperty('rate', 150)
-    return engine
+    eng = pyttsx3.init()
+    eng.setProperty('rate', 150)
+    return eng
 
+# ---------- MAIN LOOP ----------
 def main():
-    tts_engine = setup_tts()
-    agent = RLLearningAgent(alpha=0.1, gamma=0.9, epsilon=0.2)
-    
-    # Attempt to load existing Q-table
-    agent.load_q_table("q_table.json")
+    tts = setup_tts()
+    agent = RLLearningAgent(alpha=.1, gamma=.9, epsilon=.2)
+    agent.load_q_table("q_table.json")          # okay if file doesn’t exist
 
-    # Start the keyboard listener for user feedback
-    listener = Listener(on_press=on_key_press)
-    listener.start()
-
-    print("AI Hype Assistant (with RL) is running...")
-
-    iteration_count = 0
+    print("AI hype assistant is running …   (Ctrl+C to stop)")
+    kill_streak = 0
+    loop = 0
 
     try:
         while True:
-            # 1) Get the current game events (kill, score, victory, etc.)
-            events = get_game_state("league")
+            # 1. capture current events for League (adjust as needed)
+            events = get_game_state("league")   # {"kill":bool,"victory":bool,"score":bool,"other":str}
 
-            # 2) If there's no kill, victory, or score, skip hype
-            #    This prevents spamming in idle/lobby states.
+            # 2. Skip loop if nothing interesting happened
             if not (events["kill"] or events["victory"] or events["score"]):
-                time.sleep(2)
+                time.sleep(1)
                 continue
 
-            # 3) Convert events dict -> RL state (e.g., (kill_bool, score_bool, victory_bool))
-            current_state = agent.encode_state(events)
+            # 3. Update simple kill-streak counter
+            if events["kill"]:
+                kill_streak += 1
+            if events["victory"]:
+                kill_streak = 0                # reset at end of game (example)
 
-            # 4) Decide an action via the RL agent
-            action = agent.act(current_state)
+            # 4. RL state & action
+            state = agent.encode_state(events)  # e.g. (kill,score,victory)
+            action = agent.act(state)           # "short_hype" | "strong_hype" | "silent"
 
-            # 5) Perform the action (TTS or silent)
+            # 5. Perform chosen action
             if action == "short_hype":
-                tts_engine.say("Nice job!")
-                tts_engine.runAndWait()
+                line = generate_hype_line("Single kill just occurred.")
+                tts.say(line);  tts.runAndWait()
+
             elif action == "strong_hype":
-                tts_engine.say("You're unstoppable!")
-                tts_engine.runAndWait()
-            # 'silent' => do nothing
+                context = f"Kill-streak = {kill_streak} in League."
+                line = generate_hype_line(context)
+                tts.say(line);  tts.runAndWait()
+            # "silent" ⇒ do nothing
 
-            # 6) Wait to see if there's a new event or user feedback
+            # 6. Wait a bit, observe outcome & build reward
             time.sleep(2)
-
-            # 7) Get the new state (in case user got another kill, etc.)
             new_events = get_game_state("league")
-            new_state = agent.encode_state(new_events)
+            new_state  = agent.encode_state(new_events)
 
-            # 8) Combine user feedback with performance-based reward
+            reward = 0
             global user_feedback
-            reward = user_feedback  # If user pressed '+' or '-'
-            user_feedback = 0       # Reset so we don't reuse it next loop
+            reward += user_feedback            # +1 / -1 from hot-key
+            user_feedback = 0                  # reset feedback
 
-            # Example: +1 if a kill is detected in the new state
-            if new_events.get("kill", False):
+            if new_events.get("kill"):         # extra reward if another kill followed
                 reward += 1
+            if action != "silent" and not new_events.get("kill"):
+                reward -= 0.1                  # tiny penalty for “useless talk”
 
-            # 9) Update Q-table
-            agent.update(current_state, action, reward, new_state)
+            agent.update(state, action, reward, new_state)
 
-            # 10) Periodically save Q-table
-            iteration_count += 1
-            if iteration_count % 50 == 0:
+            # 7. Autosave Q-table every 50 loops
+            loop += 1
+            if loop % 50 == 0:
                 agent.save_q_table("q_table.json")
 
     except KeyboardInterrupt:
-        # If user hits Ctrl+C, break the loop
-        pass
+        print("\nStopping…")
 
-    # Final save and stop listening
     agent.save_q_table("q_table.json")
-    listener.stop()
+    print("Q-table saved. Bye!")
 
 if __name__ == "__main__":
     main()
