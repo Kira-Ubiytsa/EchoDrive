@@ -47,9 +47,8 @@ class RLLearningAgent:
         """
         Save the Q-table to a JSON file.
         Note: The keys are currently Python tuples; JSON only supports strings as keys.
-        We'll convert them to strings.
+        Convertered them to strings.
         """
-        # Convert keys (which might be tuples) to strings
         q_table_str_keys = {str(k): v for k, v in self.Q.items()}
         
         data = {
@@ -76,13 +75,8 @@ class RLLearningAgent:
                 self.epsilon = data["epsilon"]
 
                 q_table_str_keys = data["Q"]
-                # Convert string keys back to Python tuples
                 self.Q = {}
                 for k_str, actions_dict in q_table_str_keys.items():
-                    # remove parentheses and split by comma if you used str(tuple)
-                    # or use an eval approach to parse the tuple from string carefully
-                    # e.g.  k_str might look like:  '(False, False, False)'
-                    # You can safely use literal_eval if you trust the JSON file.
                     import ast
                     k_tuple = ast.literal_eval(k_str)
                     self.Q[k_tuple] = actions_dict
@@ -91,5 +85,4 @@ class RLLearningAgent:
 
         except FileNotFoundError:
             print(f"No Q-table file found at {filename}; starting fresh.")
-            # It's okay if there's no file yet—just start with an empty Q.
 
